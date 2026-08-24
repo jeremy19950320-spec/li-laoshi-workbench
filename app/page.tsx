@@ -431,21 +431,36 @@ function HomeSchedule({ go }: { go: (s: string) => void }) {
   const [tasks, setTasks] = useState<HomeTask[]>([]);
   const [image, setImage] = useState<StoredFile | null>(null);
   const [showImage, setShowImage] = useState(false);
-  const weekdays = ["周一", "周二", "周三", "周四", "周五"];
-  const periods = ["08:00", "09:00", "10:00", "11:00", "14:00", "15:00", "16:00", "17:00"];
+  const [editor, setEditor] = useState<{ weekday: string; time: string; task?: HomeTask } | null>(null);
+  const [notice, setNotice] = useState("");
+  const weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+  const periods = [
+    { label: "早自习", time: "07:20" }, { label: "上午 1", time: "08:00" }, { label: "上午 2", time: "08:55" }, { label: "上午 3", time: "10:00" }, { label: "上午 4", time: "10:55" },
+    { label: "下午 5", time: "14:00" }, { label: "下午 6", time: "14:55" }, { label: "下午 7", time: "16:00" }, { label: "下午 8", time: "16:55" },
+    { label: "晚自习 1", time: "19:00" }, { label: "晚自习 2", time: "19:45" }, { label: "晚自习 3", time: "20:35" }, { label: "晚自习 4", time: "21:20" },
+  ];
   useEffect(() => {
     Promise.all([fetch("/api/teaching?all=1").then(r => r.json()), fetch("/api/files").then(r => r.json())]).then(([t, f]) => {
       setTasks(t.tasks || []);
       if (Array.isArray(f)) setImage(f.find((x: StoredFile) => x.category === "课程表" && (x.contentType || "").startsWith("image/")) || null);
     }).catch(() => undefined);
   }, []);
-  const periodFor = (time: string) => Math.max(0, periods.findIndex(p => time <= p) < 0 ? periods.length - 1 : periods.findIndex(p => time <= p));
+  const reload = async () => { try { const t = await fetch("/api/teaching?all=1").then(r => r.json()); setTasks(t.tasks || []); } catch { setNotice("课程表读取失败，请刷新后重试。"); } };
+  const save = async (data: HomeTask) => { try { const method = data.id ? "PUT" : "POST"; const body = data.id ? data : { action: "task", ...data }; const r = await fetch("/api/teaching", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); const result = await r.json(); if (!r.ok) throw new Error(result.error); setEditor(null); setNotice("课程表已保存"); reload(); } catch (e: any) { setNotice(e.message || "保存失败，请重试。"); } };
+  const remove = async (id: number) => { if (!window.confirm("确定删除这节课吗？")) return; try { const r = await fetch(`/api/teaching?id=${id}`, { method: "DELETE" }); const data = await r.json(); if (!r.ok) throw new Error(data.error); setEditor(null); setNotice("课程已删除"); reload(); } catch (e: any) { setNotice(e.message || "删除失败，请重试。"); } };
+  const today = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][new Date().getDay()];
   return <section className="card home-schedule">
     <div className="card-title"><div><small>本周安排</small><h2>课程表</h2></div><div className="schedule-actions">{image && <button onClick={() => setShowImage(!showImage)}>{showImage ? "收起原图" : "查看上传原图"}</button>}<button onClick={() => go("教务")}>管理课表 →</button></div></div>
     {showImage && image && <img className="schedule-image" src={`/api/files?id=${image.id}&inline=1`} alt="已上传课程表原图" />}
-    <div className="timetable"><div className="time-head">节次 / 时间</div>{weekdays.map(day => <div className="day-head" key={day}>{day}</div>)}{periods.map((time, row) => <div className="time-row" key={time}><div className="time-label"><b>第 {row + 1} 节</b><small>{time}</small></div>{weekdays.map(day => { const item = tasks.find(t => t.weekday === day && periodFor(t.startTime) === row); return <div className={item ? `lesson lesson-${item.subject}` : "lesson empty-slot"} key={`${day}-${time}`}>{item && <><b>{item.subject}</b><span>{item.topic}</span><small>{item.grade}{item.className} · {item.startTime}</small></>}</div>; })}</div>)}</div>
+    <div className="timetable compact"><div className="time-head">节次</div>{weekdays.map(day => <div className={day === today ? "day-head today" : "day-head"} key={day}>{day}</div>)}{periods.map((period) => <div className="time-row" key={period.time}><div className="time-label"><b>{period.label}</b><small>{period.time}</small></div>{weekdays.map(day => { const item = tasks.find(t => t.weekday === day && t.startTime === period.time); return <button onClick={() => setEditor({ weekday: day, time: period.time, task: item })} className={`${item ? `lesson lesson-${item.subject}` : "lesson empty-slot"}${day === today ? " today" : ""}`} key={`${day}-${period.time}`}>{item && <><b>{item.subject}</b><span>{item.topic}</span><small>{item.grade}{item.className}</small></>}</button>; })}</div>)}</div>
     {!tasks.length && <p className="empty schedule-empty">暂无课程安排。请进入“教务工作”，选择学科后按课表新增教学任务；这里会自动生成课程表。</p>}
+    {!!notice && <p className="schedule-notice">{notice}</p>}
+    {editor && <ScheduleEditor entry={editor} close={() => setEditor(null)} save={save} remove={remove} />}
   </section>;
+}
+function ScheduleEditor({ entry, close, save, remove }: { entry: { weekday: string; time: string; task?: HomeTask }; close: () => void; save: (x: HomeTask) => void; remove: (id: number) => void }) {
+  const [form, setForm] = useState<HomeTask>(entry.task || { id: 0, subject: "英语", grade: "九年级", className: "901", weekday: entry.weekday, startTime: entry.time, topic: "", status: "待备课" });
+  return <div className="backdrop" onMouseDown={close}><form className="modal schedule-editor" onMouseDown={e => e.stopPropagation()} onSubmit={e => { e.preventDefault(); save(form); }}><div className="modal-title"><div><small>{form.weekday} · {form.startTime}</small><h2>{entry.task ? "编辑课程" : "添加课程"}</h2></div><button type="button" onClick={close}>×</button></div><label>学科<select value={form.subject} onChange={e => setForm({...form,subject:e.target.value})}>{["英语","历史","地理"].map(x => <option key={x}>{x}</option>)}</select></label><label>班级<select value={form.className} onChange={e => setForm({...form,className:e.target.value})}>{["901","902","903","904","905","906","907","908"].map(x => <option key={x}>{x}</option>)}</select></label><label>教学内容<input required value={form.topic} onChange={e => setForm({...form,topic:e.target.value})} placeholder="例如：Unit 1 词汇" /></label><label>状态<select value={form.status} onChange={e => setForm({...form,status:e.target.value})}><option>待备课</option><option>已完成</option><option>已授课</option></select></label><div className="modal-actions">{entry.task && <button type="button" className="danger" onClick={() => remove(entry.task!.id)}>删除</button>}<button type="button" className="secondary" onClick={close}>取消</button><button className="primary">保存课程</button></div></form></div>;
 }
 function Students({
   students,
@@ -643,7 +658,7 @@ function Teaching({ say }: { say: (x: string) => void }) {
         <form className="task-form" onSubmit={saveTask}>
           <select value={task.grade} onChange={(e) => setTask({ ...task, grade: e.target.value })}><option>九年级</option></select>
           <select value={task.className} onChange={(e) => setTask({ ...task, className: e.target.value })}>{["901","902","903","904","905","906","907","908"].map(x => <option key={x}>{x}</option>)}</select>
-          <select value={task.weekday} onChange={(e) => setTask({ ...task, weekday: e.target.value })}>{["周一","周二","周三","周四","周五"].map(x => <option key={x}>{x}</option>)}</select>
+          <select value={task.weekday} onChange={(e) => setTask({ ...task, weekday: e.target.value })}>{["周一","周二","周三","周四","周五","周六","周日"].map(x => <option key={x}>{x}</option>)}</select>
           <input type="time" value={task.startTime} onChange={(e) => setTask({ ...task, startTime: e.target.value })} />
           <input required value={task.topic} onChange={(e) => setTask({ ...task, topic: e.target.value })} placeholder="教学内容 / 课题" />
           <select value={task.status} onChange={(e) => setTask({ ...task, status: e.target.value })}><option>待备课</option><option>已完成</option><option>已授课</option></select>

@@ -61,3 +61,23 @@ export async function POST(request: Request) {
     return Response.json({ error: "保存失败，请检查网络后重试。" }, { status: 503 });
   }
 }
+
+export async function PUT(request: Request) {
+  try {
+    await init(); const data = await request.json();
+    if (!data.id || !data.subject || !data.weekday || !data.startTime || !data.topic) return Response.json({ error: "请完整填写课程信息。" }, { status: 400 });
+    const result = await env.DB.prepare("UPDATE teaching_tasks SET subject=?, grade=?, class_name=?, weekday=?, start_time=?, topic=?, status=? WHERE id=?").bind(data.subject,data.grade || "九年级",data.className || "901",data.weekday,data.startTime,data.topic,data.status || "待备课",data.id).run();
+    if (!result.meta.changes) return Response.json({ error: "未找到该教学任务。" }, { status: 404 });
+    return Response.json(data);
+  } catch { return Response.json({ error: "保存失败，请检查网络后重试。" }, { status: 503 }); }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    await init(); const id = new URL(request.url).searchParams.get("id");
+    if (!id) return Response.json({ error: "缺少课程编号。" }, { status: 400 });
+    const result = await env.DB.prepare("DELETE FROM teaching_tasks WHERE id=?").bind(id).run();
+    if (!result.meta.changes) return Response.json({ error: "课程不存在。" }, { status: 404 });
+    return Response.json({ ok: true });
+  } catch { return Response.json({ error: "删除失败，请检查网络后重试。" }, { status: 503 }); }
+}
