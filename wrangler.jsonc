@@ -10,5 +10,8 @@
       "database_name": "li-laoshi-workbench-db",
       "database_id": "ddd4b2aa-385c-4945-a8ff-21ccc2c33eaf"
     }
+  ],
+  "r2_buckets": [
+    { "binding": "FILES", "bucket_name": "li-laoshi-workbench-files" }
   ]
 }
