@@ -20,6 +20,7 @@ type Student = {
   guardian2Relation?: string;
   guardian2Phone?: string;
   dormitory?: string;
+  idCard?: string;
   address: string;
   political: string;
   remark: string;
@@ -477,7 +478,7 @@ function Students({
     [q, setQ] = useState("");
   const [saved, setSaved] = useState<Student[]>([]);
   const [addOpen, setAddOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", className: "901", sex: "男", guardian1Name: "", guardian1Relation: "妈妈", guardian1Phone: "", guardian2Name: "", guardian2Relation: "爸爸", guardian2Phone: "", dormitory: "", address: "", political: "群众", remark: "" });
+  const [form, setForm] = useState({ name: "", className: "901", sex: "男", guardian1Name: "", guardian1Relation: "妈妈", guardian1Phone: "", guardian2Name: "", guardian2Relation: "爸爸", guardian2Phone: "", dormitory: "", idCard: "", address: "", political: "群众", remark: "" });
   useEffect(() => { fetch("/api/students").then(r => r.json()).then(x => Array.isArray(x) && setSaved(x)).catch(() => undefined); }, []);
   const allStudents = saved.length ? saved : students;
   const list = allStudents.filter(
@@ -494,7 +495,7 @@ function Students({
           <p>按年级、班级和性别快速查询；点击姓名查看完整档案</p>
           <h1>学生信息与事务</h1>
         </div>
-        <div className="head-actions"><label className="secondary">导入学生 Excel<input hidden type="file" accept=".xlsx,.xls,.csv" onChange={e => { importStudents(e.target.files?.[0], setSaved, say); e.currentTarget.value = ""; }} /></label><button className="primary" onClick={() => setAddOpen(true)}>＋ 新增学生</button></div>
+        <div className="head-actions"><button className="secondary" onClick={downloadStudentTemplate}>下载导入模板</button><label className="secondary">导入学生 Excel<input hidden type="file" accept=".xlsx,.xls,.csv" onChange={e => { importStudents(e.target.files?.[0], setSaved, say); e.currentTarget.value = ""; }} /></label><button className="primary" onClick={() => setAddOpen(true)}>＋ 新增学生</button></div>
       </section>
       <section className="filters card">
         <input
@@ -525,33 +526,12 @@ function Students({
         <div className="table-wrap">
           <table>
             <thead>
-              <tr>
-                <th>姓名</th>
-                <th>年级班级</th>
-                <th>性别</th>
-                <th>政治面貌</th>
-                <th>状态</th>
-                <th>备注</th>
-              </tr>
+              <tr><th>班级</th><th>学号</th><th>姓名</th><th>性别</th><th>家长手机号码</th><th>宿舍号</th><th>身份证号码</th></tr>
             </thead>
             <tbody>
               {list.map((s) => (
                 <tr key={s.id}>
-                  <td>
-                    <button className="name-link" onClick={() => onSelect(s)}>
-                      {s.name}
-                    </button>
-                    <small>{s.studentNo}</small>
-                  </td>
-                  <td>
-                    {s.grade} {s.className}
-                  </td>
-                  <td>{s.sex}</td>
-                  <td>{s.political}</td>
-                  <td>
-                    <span className="tag blue">{s.status}</span>
-                  </td>
-                  <td>{s.remark || "—"}</td>
+                  <td>{s.className}</td><td>{s.studentNo}</td><td><button className="name-link" onClick={() => onSelect(s)}>{s.name}</button></td><td>{s.sex}</td><td>{s.guardian1Phone || s.parentPhone || "—"}</td><td>{s.dormitory || "—"}</td><td>{s.idCard || "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -562,17 +542,25 @@ function Students({
     </>
   );
 }
+function downloadStudentTemplate() {
+  const headers = ["姓名", "性别", "班级", "寝室号", "身份证号码", "家长姓名1", "亲属关系1", "家长手机1", "家长姓名2", "亲属关系2", "家长手机2", "家庭住址", "政治面貌", "备注"];
+  const note = ["示例：张同学", "男/女", "901 至 908", "示例：3-502", "18 位身份证号", "示例：张先生", "爸爸/妈妈等", "11 位手机号", "可选", "可选", "可选", "可选", "可选", "可选"];
+  const sheet = XLSX.utils.aoa_to_sheet([headers, note]);
+  sheet["!cols"] = headers.map((header) => ({ wch: Math.max(header.length * 2 + 4, 14) }));
+  const book = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(book, sheet, "学生信息导入模板");
+  XLSX.writeFile(book, "学生信息导入模板.xlsx");
+}
 async function importStudents(file: File | undefined, setSaved: (v: Student[]) => void, say: (x: string) => void) {
   if (!file) return; try {
     const book = XLSX.read(await file.arrayBuffer(), { type: "array" }); const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(book.Sheets[book.SheetNames[0]], { defval: "" });
     const value = (row: Record<string, unknown>, ...keys: string[]) => String(keys.map(k => row[k]).find(v => v !== undefined && v !== "") || "").trim();
-    const items = rows.map(row => ({ name: value(row,"姓名","学生姓名"), sex: value(row,"性别"), className: value(row,"班级","班号"), dormitory: value(row,"寝室号","宿舍号"), guardian1Name: value(row,"家长姓名1","监护人1姓名","家长1姓名"), guardian1Relation: value(row,"亲属关系1","监护人1关系","家长1关系"), guardian1Phone: value(row,"家长手机1","家长电话1","监护人1电话","家长1手机号"), guardian2Name: value(row,"家长姓名2","监护人2姓名","家长2姓名"), guardian2Relation: value(row,"亲属关系2","监护人2关系","家长2关系"), guardian2Phone: value(row,"家长手机2","家长电话2","监护人2电话","家长2手机号"), address: value(row,"家庭住址","住址"), political: value(row,"政治面貌"), remark: value(row,"备注") })).filter(x => x.name || x.className);
+    const items = rows.map(row => ({ name: value(row,"姓名","学生姓名"), sex: value(row,"性别"), className: value(row,"班级","班号"), dormitory: value(row,"寝室号","宿舍号"), idCard: value(row,"身份证号码","身份证号"), guardian1Name: value(row,"家长姓名1","监护人1姓名","家长1姓名"), guardian1Relation: value(row,"亲属关系1","监护人1关系","家长1关系"), guardian1Phone: value(row,"家长手机1","家长电话1","监护人1电话","家长1手机号"), guardian2Name: value(row,"家长姓名2","监护人2姓名","家长2姓名"), guardian2Relation: value(row,"亲属关系2","监护人2关系","家长2关系"), guardian2Phone: value(row,"家长手机2","家长电话2","监护人2电话","家长2手机号"), address: value(row,"家庭住址","住址"), political: value(row,"政治面貌"), remark: value(row,"备注") })).filter(x => x.name || x.className);
     const r = await fetch("/api/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "import", items }) }); const data = await r.json(); if (!r.ok) throw new Error(data.error); const latest = await fetch("/api/students").then(x => x.json()); if (Array.isArray(latest)) setSaved(latest); say(`已导入 ${data.count} 名学生${data.invalid?.length ? `，跳过 ${data.invalid.length} 行无效数据` : ""}`);
   } catch (e: any) { say(e.message || "导入失败，请检查 Excel 表头与数据后重试。"); }
 }
 function StudentForm({ form, setForm, close, saved, say }: any) {
   const submit = async (e: React.FormEvent) => { e.preventDefault(); try { const r = await fetch("/api/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) }); const d = await r.json(); if (!r.ok) throw new Error(d.error); saved(d); } catch (e: any) { say(e.message || "保存失败，请重试。"); } };
-  return <div className="backdrop" onMouseDown={close}><form className="modal record-form" onMouseDown={e => e.stopPropagation()} onSubmit={submit}><div className="modal-title"><div><small>新增学生档案</small><h2>九年级学生</h2></div><button type="button" onClick={close}>×</button></div><label>姓名<input required value={form.name} onChange={e => setForm({...form,name:e.target.value})} /></label><label>班级<select value={form.className} onChange={e => setForm({...form,className:e.target.value})}>{["901","902","903","904","905","906","907","908"].map(x => <option key={x}>{x}</option>)}</select><small>学号会自动生成，如 901 班第 1 人为 90101。</small></label><label>性别<select value={form.sex} onChange={e => setForm({...form,sex:e.target.value})}><option>男</option><option>女</option></select></label><label>寝室号<input value={form.dormitory} onChange={e => setForm({...form,dormitory:e.target.value})} placeholder="例如：3-502" /></label><label>家长 / 监护人 1 姓名<input value={form.guardian1Name} onChange={e => setForm({...form,guardian1Name:e.target.value})} /></label><label>亲属关系<select value={form.guardian1Relation} onChange={e => setForm({...form,guardian1Relation:e.target.value})}>{["爸爸","妈妈","爷爷","奶奶","外公","外婆","其他"].map(x => <option key={x}>{x}</option>)}</select></label><label>家长 / 监护人 1 手机号<input value={form.guardian1Phone} onChange={e => setForm({...form,guardian1Phone:e.target.value})} /></label><label>家长 / 监护人 2 姓名<input value={form.guardian2Name} onChange={e => setForm({...form,guardian2Name:e.target.value})} /></label><label>亲属关系<select value={form.guardian2Relation} onChange={e => setForm({...form,guardian2Relation:e.target.value})}>{["爸爸","妈妈","爷爷","奶奶","外公","外婆","其他"].map(x => <option key={x}>{x}</option>)}</select></label><label>家长 / 监护人 2 手机号<input value={form.guardian2Phone} onChange={e => setForm({...form,guardian2Phone:e.target.value})} /></label><label>家庭住址<input value={form.address} onChange={e => setForm({...form,address:e.target.value})} /></label><label>备注<textarea value={form.remark} onChange={e => setForm({...form,remark:e.target.value})} /></label><div className="modal-actions"><button type="button" className="secondary" onClick={close}>取消</button><button className="primary">保存并生成学号</button></div></form></div>;
+  return <div className="backdrop" onMouseDown={close}><form className="modal record-form" onMouseDown={e => e.stopPropagation()} onSubmit={submit}><div className="modal-title"><div><small>新增学生档案</small><h2>九年级学生</h2></div><button type="button" onClick={close}>×</button></div><label>姓名<input required value={form.name} onChange={e => setForm({...form,name:e.target.value})} /></label><label>班级<select value={form.className} onChange={e => setForm({...form,className:e.target.value})}>{["901","902","903","904","905","906","907","908"].map(x => <option key={x}>{x}</option>)}</select><small>学号会自动生成，如 901 班第 1 人为 90101。</small></label><label>性别<select value={form.sex} onChange={e => setForm({...form,sex:e.target.value})}><option>男</option><option>女</option></select></label><label>寝室号<input value={form.dormitory} onChange={e => setForm({...form,dormitory:e.target.value})} placeholder="例如：3-502" /></label><label>身份证号码<input value={form.idCard} onChange={e => setForm({...form,idCard:e.target.value})} /></label><label>家长 / 监护人 1 姓名<input value={form.guardian1Name} onChange={e => setForm({...form,guardian1Name:e.target.value})} /></label><label>亲属关系<select value={form.guardian1Relation} onChange={e => setForm({...form,guardian1Relation:e.target.value})}>{["爸爸","妈妈","爷爷","奶奶","外公","外婆","其他"].map(x => <option key={x}>{x}</option>)}</select></label><label>家长 / 监护人 1 手机号<input value={form.guardian1Phone} onChange={e => setForm({...form,guardian1Phone:e.target.value})} /></label><label>家长 / 监护人 2 姓名<input value={form.guardian2Name} onChange={e => setForm({...form,guardian2Name:e.target.value})} /></label><label>亲属关系<select value={form.guardian2Relation} onChange={e => setForm({...form,guardian2Relation:e.target.value})}>{["爸爸","妈妈","爷爷","奶奶","外公","外婆","其他"].map(x => <option key={x}>{x}</option>)}</select></label><label>家长 / 监护人 2 手机号<input value={form.guardian2Phone} onChange={e => setForm({...form,guardian2Phone:e.target.value})} /></label><label>家庭住址<input value={form.address} onChange={e => setForm({...form,address:e.target.value})} /></label><label>备注<textarea value={form.remark} onChange={e => setForm({...form,remark:e.target.value})} /></label><div className="modal-actions"><button type="button" className="secondary" onClick={close}>取消</button><button className="primary">保存并生成学号</button></div></form></div>;
 }
 type TeachingTask = { id: number; grade: string; className: string; weekday: string; startTime: string; topic: string; status: string };
 type Chapter = { id: number; chapterNo: string; title: string; sortOrder: number };
@@ -917,6 +905,7 @@ function StudentDetail({ student, close, say }: { student: Student; close: () =>
           {field("亲属关系", "guardian2Relation", "例如：爸爸、爷爷、奶奶")}
           {field("家长 / 监护人 2 手机号", "guardian2Phone")}
           {field("寝室号", "dormitory", "例如：3-502")}
+          {field("身份证号码", "idCard")}
           {field("家庭住址", "address")}
           {field("政治面貌", "political")}
           {field("状态", "status")}
