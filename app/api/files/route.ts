@@ -17,7 +17,8 @@ export async function GET(request: Request) {
       const item = await env.DB.prepare('SELECT filename, content_type, data_blob FROM stored_files WHERE id = ?').bind(id).first<{filename:string;content_type:string;data_blob:ArrayBuffer}>();
       if (!item) return Response.json({ error: '文件不存在。' }, { status: 404 });
       if (!item.data_blob) return Response.json({ error: '这是旧版文件记录，请重新上传。' }, { status: 404 });
-      return new Response(item.data_blob, { headers: { 'Content-Type': item.content_type || 'application/octet-stream', 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(item.filename)}` } });
+      const inline = new URL(request.url).searchParams.get('inline') === '1';
+      return new Response(item.data_blob, { headers: { 'Content-Type': item.content_type || 'application/octet-stream', 'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(item.filename)}` } });
     }
     const { results } = await env.DB.prepare('SELECT id, filename, category, content_type as contentType, size, created_at as createdAt FROM stored_files ORDER BY id DESC').all();
     return Response.json(results);

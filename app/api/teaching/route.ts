@@ -17,9 +17,13 @@ async function init() {
 export async function GET(request: Request) {
   try {
     await init();
-    const subject = new URL(request.url).searchParams.get("subject") || "英语";
+    const params = new URL(request.url).searchParams;
+    const subject = params.get("subject") || "英语";
+    const allSubjects = params.get("all") === "1";
     const [tasks, catalog] = await Promise.all([
-      env.DB.prepare("SELECT id, subject, grade, class_name as className, weekday, start_time as startTime, topic, status FROM teaching_tasks WHERE subject = ? ORDER BY id DESC").bind(subject).all(),
+      allSubjects
+        ? env.DB.prepare("SELECT id, subject, grade, class_name as className, weekday, start_time as startTime, topic, status FROM teaching_tasks ORDER BY id DESC").all()
+        : env.DB.prepare("SELECT id, subject, grade, class_name as className, weekday, start_time as startTime, topic, status FROM teaching_tasks WHERE subject = ? ORDER BY id DESC").bind(subject).all(),
       env.DB.prepare("SELECT id, subject, chapter_no as chapterNo, title, sort_order as sortOrder FROM textbook_catalog WHERE subject = ? ORDER BY sort_order, id").bind(subject).all(),
     ]);
     return Response.json({ tasks: tasks.results, catalog: catalog.results });

@@ -284,17 +284,7 @@ function Dashboard({
           ＋ 新增备课
         </button>
       </section>
-      <section className="stats">
-        <Stat n="12" l="本学期备课" t="其中 8 条已授课" />
-        <Stat
-          n={String(leaves.length)}
-          l="请假中学生"
-          t="请在下方核对名单与原因"
-          a
-        />
-        <Stat n="48" l="团员与积极分子" t="团员 39 人 · 积极分子 9 人" />
-        <Stat n="6" l="待跟进事项" t="较昨日新增 2 项" />
-      </section>
+      <HomeSchedule go={go} />
       <section className="home-summary">
         <div className="card schedules">
           <Title label="今日资料" title="校历与课程表" />
@@ -429,6 +419,27 @@ function Dashboard({
     </>
   );
 }
+type HomeTask = { id: number; subject: string; grade: string; className: string; weekday: string; startTime: string; topic: string; status: string };
+function HomeSchedule({ go }: { go: (s: string) => void }) {
+  const [tasks, setTasks] = useState<HomeTask[]>([]);
+  const [image, setImage] = useState<StoredFile | null>(null);
+  const [showImage, setShowImage] = useState(false);
+  const weekdays = ["周一", "周二", "周三", "周四", "周五"];
+  const periods = ["08:00", "09:00", "10:00", "11:00", "14:00", "15:00", "16:00", "17:00"];
+  useEffect(() => {
+    Promise.all([fetch("/api/teaching?all=1").then(r => r.json()), fetch("/api/files").then(r => r.json())]).then(([t, f]) => {
+      setTasks(t.tasks || []);
+      if (Array.isArray(f)) setImage(f.find((x: StoredFile) => x.category === "课程表" && (x.contentType || "").startsWith("image/")) || null);
+    }).catch(() => undefined);
+  }, []);
+  const periodFor = (time: string) => Math.max(0, periods.findIndex(p => time <= p) < 0 ? periods.length - 1 : periods.findIndex(p => time <= p));
+  return <section className="card home-schedule">
+    <div className="card-title"><div><small>本周安排</small><h2>课程表</h2></div><div className="schedule-actions">{image && <button onClick={() => setShowImage(!showImage)}>{showImage ? "收起原图" : "查看上传原图"}</button>}<button onClick={() => go("教务")}>管理课表 →</button></div></div>
+    {showImage && image && <img className="schedule-image" src={`/api/files?id=${image.id}&inline=1`} alt="已上传课程表原图" />}
+    <div className="timetable"><div className="time-head">节次 / 时间</div>{weekdays.map(day => <div className="day-head" key={day}>{day}</div>)}{periods.map((time, row) => <div className="time-row" key={time}><div className="time-label"><b>第 {row + 1} 节</b><small>{time}</small></div>{weekdays.map(day => { const item = tasks.find(t => t.weekday === day && periodFor(t.startTime) === row); return <div className={item ? `lesson lesson-${item.subject}` : "lesson empty-slot"} key={`${day}-${time}`}>{item && <><b>{item.subject}</b><span>{item.topic}</span><small>{item.grade}{item.className} · {item.startTime}</small></>}</div>; })}</div>)}</div>
+    {!tasks.length && <p className="empty schedule-empty">暂无课程安排。请进入“教务工作”，选择学科后按课表新增教学任务；这里会自动生成课程表。</p>}
+  </section>;
+}
 function Students({
   students,
   onSelect,
@@ -525,7 +536,7 @@ function Students({
 }
 type TeachingTask = { id: number; grade: string; className: string; weekday: string; startTime: string; topic: string; status: string };
 type Chapter = { id: number; chapterNo: string; title: string; sortOrder: number };
-type StoredFile = { id: number; filename: string; category: string; size: number };
+type StoredFile = { id: number; filename: string; category: string; contentType?: string; size: number };
 const subjects = ["英语", "历史", "地理"];
 
 function Teaching({ say }: { say: (x: string) => void }) {
