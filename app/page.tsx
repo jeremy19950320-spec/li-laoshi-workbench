@@ -13,6 +13,12 @@ type Student = {
   studentNo: string;
   phone: string;
   parentPhone: string;
+  guardian1Name?: string;
+  guardian1Relation?: string;
+  guardian1Phone?: string;
+  guardian2Name?: string;
+  guardian2Relation?: string;
+  guardian2Phone?: string;
   address: string;
   political: string;
   remark: string;
@@ -251,7 +257,7 @@ export default function Home() {
         />
       )}{" "}
       {student && (
-        <StudentDetail student={student} close={() => setStudent(null)} />
+        <StudentDetail student={student} close={() => setStudent(null)} say={say} />
       )}{" "}
       {toast && <div className="toast">✓　{toast}</div>}
     </main>
@@ -455,7 +461,7 @@ function Students({
     [q, setQ] = useState("");
   const [saved, setSaved] = useState<Student[]>([]);
   const [addOpen, setAddOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", className: "901", sex: "男", phone: "", parentPhone: "", address: "", political: "群众", remark: "" });
+  const [form, setForm] = useState({ name: "", className: "901", sex: "男", guardian1Name: "", guardian1Relation: "妈妈", guardian1Phone: "", guardian2Name: "", guardian2Relation: "爸爸", guardian2Phone: "", address: "", political: "群众", remark: "" });
   useEffect(() => { fetch("/api/students").then(r => r.json()).then(x => Array.isArray(x) && setSaved(x)).catch(() => undefined); }, []);
   const allStudents = saved.length ? saved : students;
   const list = allStudents.filter(
@@ -542,7 +548,7 @@ function Students({
 }
 function StudentForm({ form, setForm, close, saved, say }: any) {
   const submit = async (e: React.FormEvent) => { e.preventDefault(); try { const r = await fetch("/api/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) }); const d = await r.json(); if (!r.ok) throw new Error(d.error); saved(d); } catch (e: any) { say(e.message || "保存失败，请重试。"); } };
-  return <div className="backdrop" onMouseDown={close}><form className="modal record-form" onMouseDown={e => e.stopPropagation()} onSubmit={submit}><div className="modal-title"><div><small>新增学生档案</small><h2>九年级学生</h2></div><button type="button" onClick={close}>×</button></div><label>姓名<input required value={form.name} onChange={e => setForm({...form,name:e.target.value})} /></label><label>班级<select value={form.className} onChange={e => setForm({...form,className:e.target.value})}>{["901","902","903","904","905","906","907","908"].map(x => <option key={x}>{x}</option>)}</select><small>学号会自动生成，如 901 班第 1 人为 90101。</small></label><label>性别<select value={form.sex} onChange={e => setForm({...form,sex:e.target.value})}><option>男</option><option>女</option></select></label><label>学生联系电话<input value={form.phone} onChange={e => setForm({...form,phone:e.target.value})} /></label><label>家长联系方式<input value={form.parentPhone} onChange={e => setForm({...form,parentPhone:e.target.value})} /></label><label>家庭住址<input value={form.address} onChange={e => setForm({...form,address:e.target.value})} /></label><label>备注<textarea value={form.remark} onChange={e => setForm({...form,remark:e.target.value})} /></label><div className="modal-actions"><button type="button" className="secondary" onClick={close}>取消</button><button className="primary">保存并生成学号</button></div></form></div>;
+  return <div className="backdrop" onMouseDown={close}><form className="modal record-form" onMouseDown={e => e.stopPropagation()} onSubmit={submit}><div className="modal-title"><div><small>新增学生档案</small><h2>九年级学生</h2></div><button type="button" onClick={close}>×</button></div><label>姓名<input required value={form.name} onChange={e => setForm({...form,name:e.target.value})} /></label><label>班级<select value={form.className} onChange={e => setForm({...form,className:e.target.value})}>{["901","902","903","904","905","906","907","908"].map(x => <option key={x}>{x}</option>)}</select><small>学号会自动生成，如 901 班第 1 人为 90101。</small></label><label>性别<select value={form.sex} onChange={e => setForm({...form,sex:e.target.value})}><option>男</option><option>女</option></select></label><label>家长 / 监护人 1 姓名<input value={form.guardian1Name} onChange={e => setForm({...form,guardian1Name:e.target.value})} /></label><label>亲属关系<select value={form.guardian1Relation} onChange={e => setForm({...form,guardian1Relation:e.target.value})}>{["爸爸","妈妈","爷爷","奶奶","外公","外婆","其他"].map(x => <option key={x}>{x}</option>)}</select></label><label>家长 / 监护人 1 手机号<input value={form.guardian1Phone} onChange={e => setForm({...form,guardian1Phone:e.target.value})} /></label><label>家长 / 监护人 2 姓名<input value={form.guardian2Name} onChange={e => setForm({...form,guardian2Name:e.target.value})} /></label><label>亲属关系<select value={form.guardian2Relation} onChange={e => setForm({...form,guardian2Relation:e.target.value})}>{["爸爸","妈妈","爷爷","奶奶","外公","外婆","其他"].map(x => <option key={x}>{x}</option>)}</select></label><label>家长 / 监护人 2 手机号<input value={form.guardian2Phone} onChange={e => setForm({...form,guardian2Phone:e.target.value})} /></label><label>家庭住址<input value={form.address} onChange={e => setForm({...form,address:e.target.value})} /></label><label>备注<textarea value={form.remark} onChange={e => setForm({...form,remark:e.target.value})} /></label><div className="modal-actions"><button type="button" className="secondary" onClick={close}>取消</button><button className="primary">保存并生成学号</button></div></form></div>;
 }
 type TeachingTask = { id: number; grade: string; className: string; weekday: string; startTime: string; topic: string; status: string };
 type Chapter = { id: number; chapterNo: string; title: string; sortOrder: number };
@@ -849,13 +855,14 @@ function Search({ query, setQuery, results, close, go, select }: any) {
     </div>
   );
 }
-function StudentDetail({
-  student,
-  close,
-}: {
-  student: Student;
-  close: () => void;
-}) {
+function StudentDetail({ student, close, say }: { student: Student; close: () => void; say: (x: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(student);
+  const change = (key: keyof Student, value: string) => setDraft({ ...draft, [key]: value });
+  const save = async () => {
+    try { const r = await fetch("/api/students", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft) }); const data = await r.json(); if (!r.ok) throw new Error(data.error); setDraft(data); setEditing(false); say("学生档案已保存"); } catch (e: any) { say(e.message || "保存失败，请重试。"); }
+  };
+  const field = (label: string, key: keyof Student, placeholder = "") => editing ? <label className="profile-field"><small>{label}</small><input value={String(draft[key] || "")} placeholder={placeholder} onChange={e => change(key, e.target.value)} /></label> : <Detail l={label} v={String(draft[key] || "未填写")} />;
   return (
     <div className="backdrop" onMouseDown={close}>
       <div
@@ -865,33 +872,36 @@ function StudentDetail({
         <div className="modal-title">
           <div>
             <small>学生完整档案</small>
-            <h2>{student.name}</h2>
+            <h2>{draft.name}</h2>
           </div>
           <button onClick={close}>×</button>
         </div>
         <div className="student-profile">
-          <div className="student-photo">{student.name[0]}</div>
+          <div className="student-photo">{draft.name[0]}</div>
           <div>
-            <b>{student.name}</b>
+            {editing ? <input className="profile-name" value={draft.name} onChange={e => change("name", e.target.value)} /> : <b>{draft.name}</b>}
             <p>
-              {student.grade}
-              {student.className} · {student.sex} · 学号 {student.studentNo}
+              {draft.grade}{draft.className} · {editing ? <select value={draft.sex} onChange={e => change("sex", e.target.value)}><option>男</option><option>女</option></select> : draft.sex} · 学号 {draft.studentNo}
             </p>
           </div>
         </div>
         <div className="detail-grid">
-          <Detail l="学生联系方式" v={student.phone} />
-          <Detail l="家长联系方式" v={student.parentPhone} />
-          <Detail l="家庭住址" v={student.address} />
-          <Detail l="政治面貌" v={student.political} />
-          <Detail l="状态" v={student.status} />
-          <Detail l="备注" v={student.remark || "暂无"} />
+          {field("家长 / 监护人 1 姓名", "guardian1Name", "例如：张女士")}
+          {field("亲属关系", "guardian1Relation", "例如：妈妈")}
+          {field("家长 / 监护人 1 手机号", "guardian1Phone")}
+          {field("家长 / 监护人 2 姓名", "guardian2Name", "例如：李先生")}
+          {field("亲属关系", "guardian2Relation", "例如：爸爸、爷爷、奶奶")}
+          {field("家长 / 监护人 2 手机号", "guardian2Phone")}
+          {field("家庭住址", "address")}
+          {field("政治面貌", "political")}
+          {field("状态", "status")}
+          {field("备注", "remark")}
         </div>
         <div className="modal-actions">
           <button className="secondary" onClick={close}>
             关闭
           </button>
-          <button className="primary">编辑档案</button>
+          {editing ? <button className="primary" onClick={save}>保存修改</button> : <button className="primary" onClick={() => setEditing(true)}>编辑档案</button>}
         </div>
       </div>
     </div>
