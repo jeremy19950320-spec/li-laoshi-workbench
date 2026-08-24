@@ -8,9 +8,18 @@ async function init() {
   )`).run();
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await init();
+    const id = new URL(request.url).searchParams.get('id');
+    if (id) {
+      if (!env.FILES) return Response.json({ error: '文件存储尚未绑定。' }, { status: 503 });
+      const item = await env.DB.prepare('SELECT object_key, filename, content_type FROM stored_files WHERE id = ?').bind(id).first<{object_key:string;filename:string;content_type:string}>();
+      if (!item) return Response.json({ error: '文件不存在。' }, { status: 404 });
+      const object = await env.FILES.get(item.object_key);
+      if (!object) return Response.json({ error: '文件不存在或已被删除。' }, { status: 404 });
+      return new Response(object.body, { headers: { 'Content-Type': item.content_type || 'application/octet-stream', 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(item.filename)}` } });
+    }
     const { results } = await env.DB.prepare('SELECT id, filename, category, content_type as contentType, size, created_at as createdAt FROM stored_files ORDER BY id DESC').all();
     return Response.json(results);
   } catch { return Response.json({ error: '暂时无法读取文件库。' }, { status: 503 }); }
