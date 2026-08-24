@@ -433,7 +433,6 @@ function HomeSchedule({ go }: { go: (s: string) => void }) {
   const [className, setClassName] = useState("908");
   const [image, setImage] = useState<StoredFile | null>(null);
   const [showImage, setShowImage] = useState(false);
-  const [editor, setEditor] = useState<{ weekday: string; time: string; task?: HomeTask } | null>(null);
   const [notice, setNotice] = useState("");
   const weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
   const periods = [
@@ -449,7 +448,14 @@ function HomeSchedule({ go }: { go: (s: string) => void }) {
     }).catch(() => undefined);
   }, []);
   const reload = async () => { try { const t = await fetch("/api/teaching?all=1").then(r => r.json()); setTasks(t.tasks || []); } catch { setNotice("课程表读取失败，请刷新后重试。"); } };
-  const save = async (data: HomeTask) => { try { const method = data.id ? "PUT" : "POST"; const body = data.id ? data : { action: "task", ...data }; const r = await fetch("/api/teaching", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); const result = await r.json(); if (!r.ok) throw new Error(result.error); setEditor(null); setNotice("课程表已保存"); reload(); } catch (e: any) { setNotice(e.message || "保存失败，请重试。"); } };
+  const save = async (data: HomeTask) => { try { const method = data.id ? "PUT" : "POST"; const body = data.id ? data : { action: "task", ...data }; const r = await fetch("/api/teaching", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); const result = await r.json(); if (!r.ok) throw new Error(result.error); setNotice("课程表已保存"); reload(); } catch (e: any) { setNotice(e.message || "保存失败，请重试。"); } };
+  const saveCell = async (weekday: string, startTime: string, task: HomeTask | undefined, subject: string) => {
+    try {
+      if (!subject && task) { await remove(task.id); return; }
+      if (!subject) return;
+      await save(task ? { ...task, subject } : { id: 0, subject, grade: "九年级", className, weekday, startTime, topic: "", status: "待备课" });
+    } catch { setNotice("课程保存失败，请重试。"); }
+  };
   const remove = async (id: number) => { if (!window.confirm("确定删除这节课吗？")) return; try { const r = await fetch(`/api/teaching?id=${id}`, { method: "DELETE" }); const data = await r.json(); if (!r.ok) throw new Error(data.error); setEditor(null); setNotice("课程已删除"); reload(); } catch (e: any) { setNotice(e.message || "删除失败，请重试。"); } };
   const today = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][new Date().getDay()];
   const now = new Date(); const monday = new Date(now); monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
@@ -458,10 +464,9 @@ function HomeSchedule({ go }: { go: (s: string) => void }) {
   return <section className="card home-schedule">
     <div className="card-title"><div><small>本周安排</small><h2>{className}班课程表</h2></div><div className="schedule-actions">{image && <button onClick={() => setShowImage(!showImage)}>{showImage ? "收起原图" : "查看上传原图"}</button>}<button onClick={() => go("设置")}>切换班级 →</button></div></div>
     {showImage && image && <img className="schedule-image" src={`/api/files?id=${image.id}&inline=1`} alt="已上传课程表原图" />}
-    <div className="timetable compact"><div className="time-head">节次</div>{weekdays.map((day,index) => <div className={day === today ? "day-head today" : "day-head"} key={day}><b>{day}</b><small>{dateFor(index)}</small></div>)}{periods.map((period) => <div className="time-row" key={period.time}><div className="time-label"><b>{period.label}</b><small>{period.time}</small></div>{weekdays.map(day => { const item = currentTasks.find(t => t.weekday === day && t.startTime === period.time); return <button onClick={() => setEditor({ weekday: day, time: period.time, task: item })} className={`${item ? `lesson lesson-${item.subject}` : "lesson empty-slot"}${day === today ? " today" : ""}`} key={`${day}-${period.time}`}>{item && <><b>{item.subject}</b><span>{item.topic}</span></>}</button>; })}</div>)}</div>
+    <div className="timetable compact"><div className="time-head">节次</div>{weekdays.map((day,index) => <div className={day === today ? "day-head today" : "day-head"} key={day}><b>{day}</b><small>{dateFor(index)}</small></div>)}{periods.map((period) => <div className="time-row" key={period.time}><div className="time-label"><b>{period.label}</b><small>{period.time}</small></div>{weekdays.map(day => { const item = currentTasks.find(t => t.weekday === day && t.startTime === period.time); return <div tabIndex={0} onCopy={e => { e.clipboardData.setData("text/plain", item?.subject || ""); e.preventDefault(); setNotice(item ? `已复制：${item.subject}` : "空白格无内容可复制"); }} onPaste={e => { const subject = e.clipboardData.getData("text/plain").trim(); if (["英语","历史","地理","数学","物理","语文","化学","生物","体育","美术","音乐","班会","政治"].includes(subject)) { e.preventDefault(); saveCell(day, period.time, item, subject); } else setNotice("请粘贴已复制的学科名称"); }} className={`${item ? `lesson lesson-${item.subject}` : "lesson empty-slot"}${day === today ? " today" : ""}`} key={`${day}-${period.time}`}><select aria-label={`${day}${period.label}学科`} value={item?.subject || ""} onChange={e => saveCell(day, period.time, item, e.target.value)}><option value="">选择学科</option>{["英语","历史","地理","数学","物理","语文","化学","生物","体育","美术","音乐","班会","政治"].map(x => <option key={x}>{x}</option>)}</select>{item?.topic && <small title={item.topic}>{item.topic}</small>}</div>; })}</div>)}</div>
     {!currentTasks.length && <p className="empty schedule-empty">暂无 {className} 班课程安排。点击任意空白格即可新增课程。</p>}
-    {!!notice && <p className="schedule-notice">{notice}</p>}
-    {editor && <ScheduleEditor entry={editor} className={className} close={() => setEditor(null)} save={save} remove={remove} />}
+    <p className="schedule-hint">直接点击空白格选择学科；选中一个课程格后可用 Command/Ctrl + C 复制，再选中另一格用 Command/Ctrl + V 粘贴。</p>{!!notice && <p className="schedule-notice">{notice}</p>}
   </section>;
 }
 function ScheduleEditor({ entry, className, close, save, remove }: { entry: { weekday: string; time: string; task?: HomeTask }; className: string; close: () => void; save: (x: HomeTask) => void; remove: (id: number) => void }) {
