@@ -458,7 +458,9 @@ function HomeSchedule({ go }: { go: (s: string) => void }) {
   };
   const remove = async (id: number) => { if (!window.confirm("确定删除这节课吗？")) return; try { const r = await fetch(`/api/teaching?id=${id}`, { method: "DELETE" }); const data = await r.json(); if (!r.ok) throw new Error(data.error); setEditor(null); setNotice("课程已删除"); reload(); } catch (e: any) { setNotice(e.message || "删除失败，请重试。"); } };
   const today = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][new Date().getDay()];
-  const now = new Date(); const monday = new Date(now); monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  const now = new Date(); const monday = new Date(now); const dayOfWeek = now.getDay();
+  // 周一当天显示本周；从周二起，展示下一周的课程日期。
+  monday.setDate(now.getDate() + (dayOfWeek === 1 ? 0 : (8 - dayOfWeek) % 7));
   const dateFor = (index: number) => { const d = new Date(monday); d.setDate(monday.getDate() + index); return `${String(d.getMonth() + 1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
   const currentTasks = tasks.filter(t => t.className === className);
   return <section className="card home-schedule">
