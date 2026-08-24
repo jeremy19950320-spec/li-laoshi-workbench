@@ -8,13 +8,7 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === 'seatbelt';
 const localBindingConfig = {
   main: 'vinext/server/app-router-entry',
   compatibility_flags: ['nodejs_compat'],
-  d1_databases: [
-    {
-      binding: 'DB',
-      database_name: 'li-laoshi-workbench-db',
-      database_id: 'ddd4b2aa-385c-4945-a8ff-21ccc2c33eaf',
-    },
-  ],
+  d1_databases: [],
   r2_buckets: [],
 };
 
