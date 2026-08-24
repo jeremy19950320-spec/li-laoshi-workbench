@@ -39,8 +39,8 @@ export async function POST(request: Request) {
     const now = new Date().toISOString();
     if (data.action === "task") {
       const { subject, grade, className, weekday, startTime, topic } = data;
-      if (![subject, grade, className, weekday, startTime, topic].every(Boolean)) return Response.json({ error: "请完整填写教学任务。" }, { status: 400 });
-      const result = await env.DB.prepare("INSERT INTO teaching_tasks (subject,grade,class_name,weekday,start_time,topic,status,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(subject, grade, className, weekday, startTime, topic, data.status || "待备课", now).run();
+      if (![subject, grade, className, weekday, startTime].every(Boolean)) return Response.json({ error: "请完整填写课程时间与学科。" }, { status: 400 });
+      const result = await env.DB.prepare("INSERT INTO teaching_tasks (subject,grade,class_name,weekday,start_time,topic,status,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(subject, grade, className, weekday, startTime, topic || "", data.status || "待备课", now).run();
       return Response.json({ id: result.meta.last_row_id, ...data });
     }
     if (data.action === "catalog") {
@@ -65,8 +65,8 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     await init(); const data = await request.json();
-    if (!data.id || !data.subject || !data.weekday || !data.startTime || !data.topic) return Response.json({ error: "请完整填写课程信息。" }, { status: 400 });
-    const result = await env.DB.prepare("UPDATE teaching_tasks SET subject=?, grade=?, class_name=?, weekday=?, start_time=?, topic=?, status=? WHERE id=?").bind(data.subject,data.grade || "九年级",data.className || "901",data.weekday,data.startTime,data.topic,data.status || "待备课",data.id).run();
+    if (!data.id || !data.subject || !data.weekday || !data.startTime) return Response.json({ error: "请完整填写课程时间与学科。" }, { status: 400 });
+    const result = await env.DB.prepare("UPDATE teaching_tasks SET subject=?, grade=?, class_name=?, weekday=?, start_time=?, topic=?, status=? WHERE id=?").bind(data.subject,data.grade || "九年级",data.className || "908",data.weekday,data.startTime,data.topic || "",data.status || "待备课",data.id).run();
     if (!result.meta.changes) return Response.json({ error: "未找到该教学任务。" }, { status: 404 });
     return Response.json(data);
   } catch { return Response.json({ error: "保存失败，请检查网络后重试。" }, { status: 503 }); }
