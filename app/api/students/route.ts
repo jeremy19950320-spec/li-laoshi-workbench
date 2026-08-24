@@ -46,15 +46,22 @@ export async function POST(request: Request) {
     await init(); const item = await request.json();
     if (item.action === "import") {
       if (!Array.isArray(item.items) || !item.items.length) return Response.json({ error: "未识别到学生数据。" }, { status: 400 });
-      const existing = await env.DB.prepare("SELECT class_name, student_no FROM teacher_students").all<{class_name:string;student_no:string}>();
-      const nextByClass = new Map<string, number>();
-      for (const row of existing.results) nextByClass.set(row.class_name, Math.max(nextByClass.get(row.class_name) || 0, Number(row.student_no.slice(-2)) || 0));
+      const existing = await env.DB.prepare("SELECT class_name, student_no, name, id_card FROM teacher_students").all<{class_name:string;student_no:string;name:string;id_card:string}>();
+      const nextByClass = new Map<string, number>(); const byStudentNo = new Map<string, {name:string}>();
+      const byName = new Map<string, Array<{studentNo:string;className:string;idCard:string}>>();
+      for (const row of existing.results) { nextByClass.set(row.class_name, Math.max(nextByClass.get(row.class_name) || 0, Number(row.student_no.slice(-2)) || 0)); byStudentNo.set(row.student_no, { name: row.name }); const list = byName.get(row.name) || []; list.push({ studentNo: row.student_no, className: row.class_name, idCard: row.id_card || "" }); byName.set(row.name, list); }
       const now = new Date().toISOString(); const invalid: number[] = []; const statements = [];
       for (const [index, row] of item.items.slice(0, 500).entries()) {
         const className = String(row.className || "").replace(/\D/g, "");
         if (!row.name || !/^90[1-8]$/.test(className)) { invalid.push(index + 2); continue; }
         const no = (nextByClass.get(className) || 0) + 1; nextByClass.set(className, no);
-        statements.push(env.DB.prepare("INSERT INTO teacher_students (name,grade,class_name,sex,student_no,address,political,remark,status,guardian1_name,guardian1_relation,guardian1_phone,guardian2_name,guardian2_relation,guardian2_phone,dormitory,id_card,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(row.name,"九年级",className,row.sex || "未填写",`${className}${String(no).padStart(2,"0")}`,row.address || "",row.political || "群众",row.remark || "",row.status || "正常",row.guardian1Name || "",row.guardian1Relation || "",row.guardian1Phone || "",row.guardian2Name || "",row.guardian2Relation || "",row.guardian2Phone || "",row.dormitory || "",row.idCard || "",now));
+        const sameName = byName.get(String(row.name)) || [];
+        // 导入优先按姓名查找；同名时再用身份证号码确认，避免把同名不同人的档案覆盖掉。
+        const sameStudent = row.idCard ? sameName.find(x => x.idCard === row.idCard) : sameName.find(x => x.className === className && !x.idCard);
+        const importedNo = String(row.studentNo || ""); const noOwner = byStudentNo.get(importedNo);
+        const usableImportedNo = importedNo && (!noOwner || noOwner.name === String(row.name)) ? importedNo : "";
+        const studentNo = String(sameStudent?.studentNo || usableImportedNo || `${className}${String(no).padStart(2,"0")}`);
+        statements.push(env.DB.prepare("INSERT INTO teacher_students (name,grade,class_name,sex,student_no,address,political,remark,status,guardian1_name,guardian1_relation,guardian1_phone,guardian2_name,guardian2_relation,guardian2_phone,dormitory,id_card,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(student_no) DO UPDATE SET name=excluded.name,grade=excluded.grade,class_name=excluded.class_name,sex=excluded.sex,address=excluded.address,political=excluded.political,remark=excluded.remark,status=excluded.status,guardian1_name=excluded.guardian1_name,guardian1_relation=excluded.guardian1_relation,guardian1_phone=excluded.guardian1_phone,guardian2_name=excluded.guardian2_name,guardian2_relation=excluded.guardian2_relation,guardian2_phone=excluded.guardian2_phone,dormitory=excluded.dormitory,id_card=excluded.id_card").bind(row.name,"九年级",className,row.sex || "未填写",studentNo,row.address || "",row.political || "群众",row.remark || "",row.status || "正常",row.guardian1Name || "",row.guardian1Relation || "",row.guardian1Phone || "",row.guardian2Name || "",row.guardian2Relation || "",row.guardian2Phone || "",row.dormitory || "",row.idCard || "",now));
       }
       if (!statements.length) return Response.json({ error: "没有可导入的数据。班级须为 901 至 908，且姓名不能为空。" }, { status: 400 });
       await env.DB.batch(statements);

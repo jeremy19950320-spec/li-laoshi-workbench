@@ -566,8 +566,8 @@ function Students({
   );
 }
 function downloadStudentTemplate() {
-  const headers = ["姓名", "性别", "班级", "寝室号", "身份证号码", "家长姓名1", "亲属关系1", "家长手机1", "家长姓名2", "亲属关系2", "家长手机2", "家庭住址", "政治面貌", "备注"];
-  const note = ["示例：张同学", "男/女", "901 至 908", "示例：3-502", "18 位身份证号", "示例：张先生", "爸爸/妈妈等", "11 位手机号", "可选", "可选", "可选", "可选", "可选", "可选"];
+  const headers = ["姓名", "性别", "班级", "学号", "寝室号", "身份证号码", "家属1", "手机号码1", "家属2", "手机号码2", "家庭住址", "政治面貌", "备注"];
+  const note = ["示例：张同学", "男/女", "901 至 908", "可留空自动生成", "示例：3-502", "18 位身份证号", "示例：妈妈：张女士", "11 位手机号", "示例：爸爸：李先生", "11 位手机号", "可选", "可选", "可选"];
   const sheet = XLSX.utils.aoa_to_sheet([headers, note]);
   sheet["!cols"] = headers.map((header) => ({ wch: Math.max(header.length * 2 + 4, 14) }));
   const book = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(book, sheet, "学生信息导入模板");
@@ -577,7 +577,8 @@ async function importStudents(file: File | undefined, setSaved: (v: Student[]) =
   if (!file) return; try {
     const book = XLSX.read(await file.arrayBuffer(), { type: "array" }); const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(book.Sheets[book.SheetNames[0]], { defval: "" });
     const value = (row: Record<string, unknown>, ...keys: string[]) => String(keys.map(k => row[k]).find(v => v !== undefined && v !== "") || "").trim();
-    const items = rows.map(row => ({ name: value(row,"姓名","学生姓名"), sex: value(row,"性别"), className: value(row,"班级","班号"), dormitory: value(row,"寝室号","宿舍号"), idCard: value(row,"身份证号码","身份证号"), guardian1Name: value(row,"家长姓名1","监护人1姓名","家长1姓名"), guardian1Relation: value(row,"亲属关系1","监护人1关系","家长1关系"), guardian1Phone: value(row,"家长手机1","家长电话1","监护人1电话","家长1手机号"), guardian2Name: value(row,"家长姓名2","监护人2姓名","家长2姓名"), guardian2Relation: value(row,"亲属关系2","监护人2关系","家长2关系"), guardian2Phone: value(row,"家长手机2","家长电话2","监护人2电话","家长2手机号"), address: value(row,"家庭住址","住址"), political: value(row,"政治面貌"), remark: value(row,"备注") })).filter(x => x.name || x.className);
+    const family = (text: string) => { const parts = text.split(/[：:]/, 2); return parts.length === 2 ? { relation: parts[0].trim(), name: parts[1].trim() } : { relation: "", name: text }; };
+    const items = rows.map(row => { const f1 = family(value(row,"家属1") || value(row,"家长姓名1","监护人1姓名","家长1姓名")); const f2 = family(value(row,"家属2") || value(row,"家长姓名2","监护人2姓名","家长2姓名")); return { name: value(row,"姓名","学生姓名"), sex: value(row,"性别"), className: value(row,"班级","班号"), studentNo: value(row,"学号"), dormitory: value(row,"寝室号","宿舍号"), idCard: value(row,"身份证号码","身份证号"), guardian1Name: f1.name, guardian1Relation: value(row,"亲属关系1","监护人1关系","家长1关系") || f1.relation, guardian1Phone: value(row,"手机号码1","家长手机1","家长电话1","监护人1电话","家长1手机号"), guardian2Name: f2.name, guardian2Relation: value(row,"亲属关系2","监护人2关系","家长2关系") || f2.relation, guardian2Phone: value(row,"手机号码2","家长手机2","家长电话2","监护人2电话","家长2手机号"), address: value(row,"家庭住址","住址"), political: value(row,"政治面貌"), remark: value(row,"备注") }; }).filter(x => x.name || x.className);
     const r = await fetch("/api/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "import", items }) }); const data = await r.json(); if (!r.ok) throw new Error(data.error); const latest = await fetch("/api/students").then(x => x.json()); if (Array.isArray(latest)) setSaved(latest); say(`已导入 ${data.count} 名学生${data.invalid?.length ? `，跳过 ${data.invalid.length} 行无效数据` : ""}`);
   } catch (e: any) { say(e.message || "导入失败，请检查 Excel 表头与数据后重试。"); }
 }
