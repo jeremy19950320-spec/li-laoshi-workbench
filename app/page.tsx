@@ -37,6 +37,7 @@ type RecordItem = {
 
 const nav = [
   ["概览", "首页工作台"],
+  ["课程表", "课程表"],
   ["教务", "课程与备课"],
   ["学生", "学生事务"],
   ["请假", "请假返校"],
@@ -46,6 +47,7 @@ const nav = [
 ];
 const title: any = {
   概览: "首页工作台",
+  课程表: "课程表",
   教务: "教务工作",
   学生: "学生信息与事务",
   请假: "请假与返校管理",
@@ -232,6 +234,8 @@ export default function Home() {
         <div className="page">
           {active === "概览" ? (
             <Dashboard students={students} leaves={rows.请假} go={setActive} />
+          ) : active === "课程表" ? (
+            <HomeSchedule go={setActive} />
           ) : active === "教务" ? (
             <Teaching say={say} />
           ) : active === "学生" ? (
@@ -292,7 +296,7 @@ function Dashboard({
           ＋ 新增备课
         </button>
       </section>
-      <HomeSchedule go={go} />
+      <TodaySchedule go={go} />
       <section className="home-summary">
         <div className="card schedules">
           <Title label="今日资料" title="校历与课程表" />
@@ -426,6 +430,13 @@ function Dashboard({
       </section>
     </>
   );
+}
+function TodaySchedule({ go }: { go: (s: string) => void }) {
+  const [tasks, setTasks] = useState<HomeTask[]>([]); const [className, setClassName] = useState("908");
+  const today = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][new Date().getDay()];
+  useEffect(() => { Promise.all([fetch("/api/teaching?all=1").then(r => r.json()), fetch("/api/settings").then(r => r.json())]).then(([t, s]) => { setTasks(t.tasks || []); setClassName(s.className || "908"); }).catch(() => undefined); }, []);
+  const items = tasks.filter(t => t.className === className && t.weekday === today).sort((a,b) => a.startTime.localeCompare(b.startTime));
+  return <section className="card today-schedule"><div className="card-title"><div><small>今日 · {today}</small><h2>{className}班今日课程</h2></div><button onClick={() => go("课程表")}>查看完整课程表 →</button></div>{items.length ? <div className="today-course-list">{items.map(x => <div className={`today-course lesson-${x.subject}`} key={x.id}><time>{x.startTime}</time><b>{x.subject}</b><span>{x.topic || "未填写备注"}</span></div>)}</div> : <p className="empty">今天暂无课程安排。请在“课程表”中直接选择学科。</p>}</section>;
 }
 type HomeTask = { id: number; subject: string; grade: string; className: string; weekday: string; startTime: string; topic: string; status: string };
 function HomeSchedule({ go }: { go: (s: string) => void }) {
