@@ -50,9 +50,9 @@ const seedStudents: Student[] = [
     id: 1,
     name: "张雨桐",
     grade: "九年级",
-    className: "1班",
+    className: "901",
     sex: "女",
-    studentNo: "2026001",
+    studentNo: "90101",
     phone: "13800001231",
     parentPhone: "张女士 13900001231",
     address: "海淀区知春路 88 号",
@@ -64,9 +64,9 @@ const seedStudents: Student[] = [
     id: 2,
     name: "王子轩",
     grade: "九年级",
-    className: "1班",
+    className: "901",
     sex: "男",
-    studentNo: "2026002",
+    studentNo: "90102",
     phone: "13800001232",
     parentPhone: "王先生 13900001232",
     address: "海淀区学院路 66 号",
@@ -78,9 +78,9 @@ const seedStudents: Student[] = [
     id: 3,
     name: "林思琪",
     grade: "九年级",
-    className: "3班",
+    className: "903",
     sex: "女",
-    studentNo: "2026031",
+    studentNo: "90301",
     phone: "13800001233",
     parentPhone: "林女士 13900001233",
     address: "朝阳区望京街 16 号",
@@ -92,9 +92,9 @@ const seedStudents: Student[] = [
     id: 4,
     name: "陈昊",
     grade: "九年级",
-    className: "2班",
+    className: "902",
     sex: "男",
-    studentNo: "2026018",
+    studentNo: "90201",
     phone: "13800001234",
     parentPhone: "陈先生 13900001234",
     address: "海淀区清河路 21 号",
@@ -453,7 +453,12 @@ function Students({
     [cls, setCls] = useState("全部"),
     [sex, setSex] = useState("全部"),
     [q, setQ] = useState("");
-  const list = students.filter(
+  const [saved, setSaved] = useState<Student[]>([]);
+  const [addOpen, setAddOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", className: "901", sex: "男", phone: "", parentPhone: "", address: "", political: "群众", remark: "" });
+  useEffect(() => { fetch("/api/students").then(r => r.json()).then(x => Array.isArray(x) && setSaved(x)).catch(() => undefined); }, []);
+  const allStudents = saved.length ? saved : students;
+  const list = allStudents.filter(
     (s) =>
       (grade === "全部" || s.grade === grade) &&
       (cls === "全部" || s.className === cls) &&
@@ -467,7 +472,7 @@ function Students({
           <p>按年级、班级和性别快速查询；点击姓名查看完整档案</p>
           <h1>学生信息与事务</h1>
         </div>
-        <button className="primary" onClick={() => say("学生新增功能即将接入学生档案数据库")}>＋ 新增学生</button>
+        <button className="primary" onClick={() => setAddOpen(true)}>＋ 新增学生</button>
       </section>
       <section className="filters card">
         <input
@@ -477,7 +482,7 @@ function Students({
         />
         {[
           ["年级", grade, setGrade, ["全部", "九年级"]],
-          ["班级", cls, setCls, ["全部", "1班", "2班", "3班"]],
+          ["班级", cls, setCls, ["全部", "901", "902", "903", "904", "905", "906", "907", "908"]],
           ["性别", sex, setSex, ["全部", "男", "女"]],
         ].map(([label, value, set, opts]: any) => (
           <label key={label}>
@@ -531,8 +536,13 @@ function Students({
           </table>
         </div>
       </section>
+      {addOpen && <StudentForm form={form} setForm={setForm} close={() => setAddOpen(false)} saved={(item: Student) => { setSaved(old => [...old, item]); setAddOpen(false); say(`学生已保存，自动学号为 ${item.studentNo}`); }} say={say} />}
     </>
   );
+}
+function StudentForm({ form, setForm, close, saved, say }: any) {
+  const submit = async (e: React.FormEvent) => { e.preventDefault(); try { const r = await fetch("/api/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) }); const d = await r.json(); if (!r.ok) throw new Error(d.error); saved(d); } catch (e: any) { say(e.message || "保存失败，请重试。"); } };
+  return <div className="backdrop" onMouseDown={close}><form className="modal record-form" onMouseDown={e => e.stopPropagation()} onSubmit={submit}><div className="modal-title"><div><small>新增学生档案</small><h2>九年级学生</h2></div><button type="button" onClick={close}>×</button></div><label>姓名<input required value={form.name} onChange={e => setForm({...form,name:e.target.value})} /></label><label>班级<select value={form.className} onChange={e => setForm({...form,className:e.target.value})}>{["901","902","903","904","905","906","907","908"].map(x => <option key={x}>{x}</option>)}</select><small>学号会自动生成，如 901 班第 1 人为 90101。</small></label><label>性别<select value={form.sex} onChange={e => setForm({...form,sex:e.target.value})}><option>男</option><option>女</option></select></label><label>学生联系电话<input value={form.phone} onChange={e => setForm({...form,phone:e.target.value})} /></label><label>家长联系方式<input value={form.parentPhone} onChange={e => setForm({...form,parentPhone:e.target.value})} /></label><label>家庭住址<input value={form.address} onChange={e => setForm({...form,address:e.target.value})} /></label><label>备注<textarea value={form.remark} onChange={e => setForm({...form,remark:e.target.value})} /></label><div className="modal-actions"><button type="button" className="secondary" onClick={close}>取消</button><button className="primary">保存并生成学号</button></div></form></div>;
 }
 type TeachingTask = { id: number; grade: string; className: string; weekday: string; startTime: string; topic: string; status: string };
 type Chapter = { id: number; chapterNo: string; title: string; sortOrder: number };
@@ -545,7 +555,7 @@ function Teaching({ say }: { say: (x: string) => void }) {
   const [catalog, setCatalog] = useState<Chapter[]>([]);
   const [files, setFiles] = useState<StoredFile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [task, setTask] = useState({ grade: "九年级", className: "1班", weekday: "周一", startTime: "09:40", topic: "", status: "待备课" });
+  const [task, setTask] = useState({ grade: "九年级", className: "901", weekday: "周一", startTime: "09:40", topic: "", status: "待备课" });
   const [chapter, setChapter] = useState({ chapterNo: "", title: "" });
 
   const refresh = async () => {
@@ -605,6 +615,10 @@ function Teaching({ say }: { say: (x: string) => void }) {
       if (!r.ok) throw new Error(data.error); say(`${file.name} 已上传并保存`); refresh();
     } catch (e: any) { say(e.message || "上传失败，请检查网络后重试。"); }
   };
+  const removeFile = async (file: StoredFile) => {
+    if (!window.confirm(`确定删除“${file.filename}”吗？删除后无法恢复。`)) return;
+    try { const r = await fetch(`/api/files?id=${file.id}`, { method: "DELETE" }); const data = await r.json(); if (!r.ok) throw new Error(data.error); setFiles(old => old.filter(x => x.id !== file.id)); say("资料已删除"); } catch (e: any) { say(e.message || "删除失败，请重试。"); }
+  };
   const materials = (name: string) => files.filter((f) => f.category === `教材资料 · ${subject} · ${name}`);
   return <>
     <section className="section-head"><div><p>按学科管理课表任务、教材目录与章节资料</p><h1>教务工作</h1></div></section>
@@ -613,7 +627,7 @@ function Teaching({ say }: { say: (x: string) => void }) {
       <div className="card"><Title label="课表安排" title={`${subject}教学任务`} />
         <form className="task-form" onSubmit={saveTask}>
           <select value={task.grade} onChange={(e) => setTask({ ...task, grade: e.target.value })}><option>九年级</option></select>
-          <select value={task.className} onChange={(e) => setTask({ ...task, className: e.target.value })}><option>1班</option><option>2班</option><option>3班</option></select>
+          <select value={task.className} onChange={(e) => setTask({ ...task, className: e.target.value })}>{["901","902","903","904","905","906","907","908"].map(x => <option key={x}>{x}</option>)}</select>
           <select value={task.weekday} onChange={(e) => setTask({ ...task, weekday: e.target.value })}>{["周一","周二","周三","周四","周五"].map(x => <option key={x}>{x}</option>)}</select>
           <input type="time" value={task.startTime} onChange={(e) => setTask({ ...task, startTime: e.target.value })} />
           <input required value={task.topic} onChange={(e) => setTask({ ...task, topic: e.target.value })} placeholder="教学内容 / 课题" />
@@ -626,7 +640,7 @@ function Teaching({ say }: { say: (x: string) => void }) {
         <form className="catalog-form" onSubmit={saveChapter}><input value={chapter.chapterNo} onChange={(e) => setChapter({ ...chapter, chapterNo: e.target.value })} placeholder="章节，如 第一单元" /><input required value={chapter.title} onChange={(e) => setChapter({ ...chapter, title: e.target.value })} placeholder="目录名称" /><button className="secondary">添加目录</button></form>
         <label className="import-catalog">▤ 导入教材目录 Excel<input hidden type="file" accept=".xlsx,.xls,.csv" onChange={(e) => { importCatalog(e.target.files?.[0]); e.currentTarget.value = ""; }} /></label>
         <small className="hint">表头建议使用：序号、目录（或章节名称）。导入后自动生成目录。</small>
-        <div className="catalog-list">{catalog.length ? catalog.map(c => <div className="catalog-row" key={c.id}><div><b>{c.chapterNo || "第" + c.sortOrder + "节"}　{c.title}</b>{materials(c.title).map(f => <a key={f.id} href={`/api/files?id=${f.id}`}>↓ {f.filename}</a>)}</div><label className="secondary">上传资料<input hidden type="file" onChange={(e) => { upload(e.target.files?.[0], c.title); e.currentTarget.value = ""; }} /></label></div>) : <p className="empty">尚未添加目录。可手动添加，或导入教材目录 Excel。</p>}</div>
+        <div className="catalog-list">{catalog.length ? catalog.map(c => <div className="catalog-row" key={c.id}><div><b>{c.chapterNo || "第" + c.sortOrder + "节"}　{c.title}</b>{materials(c.title).map(f => <span className="material-item" key={f.id}><a href={`/api/files?id=${f.id}`}>↓ {f.filename}</a><button onClick={() => removeFile(f)}>删除</button></span>)}</div><label className="secondary">上传资料<input hidden type="file" onChange={(e) => { upload(e.target.files?.[0], c.title); e.currentTarget.value = ""; }} /></label></div>) : <p className="empty">尚未添加目录。可手动添加，或导入教材目录 Excel。</p>}</div>
       </div>
     </section>
   </>;
@@ -711,6 +725,10 @@ function Records({
 }
 function Files({ say }: { say: (x: string) => void }) {
   const [stored, setStored] = useState<StoredFile[]>([]);
+  const remove = async (file: StoredFile) => {
+    if (!window.confirm(`确定删除“${file.filename}”吗？删除后无法恢复。`)) return;
+    try { const r = await fetch(`/api/files?id=${file.id}`, { method: "DELETE" }); const d = await r.json(); if (!r.ok) throw new Error(d.error); setStored(old => old.filter(x => x.id !== file.id)); say("文件已删除"); } catch (e: any) { say(e.message || "删除失败，请重试。"); }
+  };
   const upload = async (file: File | undefined, category: string) => {
     if (!file) return;
     try {
@@ -769,7 +787,7 @@ function Files({ say }: { say: (x: string) => void }) {
             </label>
           ))}
         </div>
-        {!!stored.length && <div className="stored-list">{stored.slice(0, 12).map(f => <a key={f.id} href={`/api/files?id=${f.id}`}>↓ {f.filename} <small>{f.category}</small></a>)}</div>}
+        {!!stored.length && <div className="stored-list">{stored.slice(0, 12).map(f => <div key={f.id}><a href={`/api/files?id=${f.id}`}>↓ {f.filename} <small>{f.category}</small></a><button onClick={() => remove(f)}>删除</button></div>)}</div>}
       </section>
     </>
   );

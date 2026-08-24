@@ -39,3 +39,14 @@ export async function POST(request: Request) {
     return Response.json({ id: result.meta.last_row_id, filename: file.name, category, contentType: file.type, size: file.size, createdAt: now });
   } catch { return Response.json({ error: '上传失败，请检查网络后重试。' }, { status: 503 }); }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    await init();
+    const id = new URL(request.url).searchParams.get('id');
+    if (!id) return Response.json({ error: '缺少文件编号。' }, { status: 400 });
+    const result = await env.DB.prepare('DELETE FROM stored_files WHERE id = ?').bind(id).run();
+    if (!result.meta.changes) return Response.json({ error: '文件不存在或已删除。' }, { status: 404 });
+    return Response.json({ ok: true });
+  } catch { return Response.json({ error: '删除失败，请检查网络后重试。' }, { status: 503 }); }
+}
